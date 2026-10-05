@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tidy Blocks – Drawer Configurator (prototype)</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef1ef;--panel:#fff;--ink:#1e2a2b;--mut:#5d6b6c;--line:#d5dcda;--wood:#dcc9a6;--wood2:#c9b48c;--ok:#2f7d6d;--bad:#c4392b;--acc:#2b50aa;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141b1c;--panel:#1e2829;--ink:#e8eeed;--mut:#9aabab;--line:#33403f;--wood:#8a7752;--wood2:#76653f;--acc:#7da2ff}}
+:root[data-theme="dark"]{--bg:#141b1c;--panel:#1e2829;--ink:#e8eeed;--mut:#9aabab;--line:#33403f;--wood:#8a7752;--wood2:#76653f;--acc:#7da2ff}
+*{box-sizing:border-box}html,body{margin:0}body{background:var(--bg);color:var(--ink);font:15px/1.45 'Bricolage Grotesque',system-ui,sans-serif}
+header{padding:18px 22px;display:flex;flex-wrap:wrap;gap:8px 20px;align-items:baseline;border-bottom:1px solid var(--line)}
+h1{font-size:22px;font-weight:800;margin:0}header span{color:var(--mut);font-size:13px}
+main{display:grid;grid-template-columns:260px minmax(0,1fr) 300px;gap:16px;padding:16px 22px;max-width:1400px;margin:auto}
+@media(max-width:1000px){main{grid-template-columns:1fr}}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+h2{font-size:14px;font-weight:800;margin:0 0 10px}
+label{display:block;font-size:13px;color:var(--mut);margin:8px 0 3px}
+input[type=number],select{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:7px 10px;border-radius:6px}
+button:hover{border-color:var(--acc)}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+button.p{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}button:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:6px;flex-wrap:wrap}.row>*{flex:1}
+.pal{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.tier{border-radius:8px;padding:10px 12px;border:1px solid var(--line);font-weight:600}
+.tier b{font-size:22px;display:block}.tier.bad{border-color:var(--bad);color:var(--bad)}
+.note{font-size:12.5px;color:var(--mut);margin:6px 0 0}
+svg{width:100%;height:auto;touch-action:none;user-select:none;display:block}
+.stage{padding:10px}
+#msg{min-height:22px;margin:0 0 8px;font-weight:600}#msg.bad{color:var(--bad)}#msg.ok{color:var(--ok)}
+table{width:100%;border-collapse:collapse;font-size:13px}td{padding:3px 0;border-bottom:1px dashed var(--line)}td:last-child{text-align:right}
+pre{margin:0;max-height:210px;overflow:auto;font-size:11.5px;background:var(--bg);padding:8px;border-radius:6px}
+.ver{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 0;border-bottom:1px dashed var(--line);font-size:13px}
+.lock{color:var(--ok);font-weight:600}
+</style></head><body>
+<header><h1>Tidy Blocks</h1><span>Drawer configurator · working prototype · mock server runs in your browser</span></header>
+<main>
+<div>
+ <section><h2>Drawer</h2>
+  <label for="w">Width (inches)</label><input id="w" type="number" min="12" max="48" step="0.25" value="22.5">
+  <label for="d">Depth (inches)</label><input id="d" type="number" min="12" max="48" step="0.25" value="18">
+  <label for="mode">Purchase mode</label>
+  <select id="mode"><option value="reg">Regular store</option><option value="ks">Kickstarter reward: 12 sq ft</option></select>
+  <p class="note">Grid is 3 in. Leftover inches become shims on the parts list.</p></section>
+ <section><h2>Add a bin <small style="font-weight:400;color:var(--mut)">(grid cells)</small></h2><div class="pal" id="pal"></div>
+  <div class="row" style="margin-top:10px"><button id="rot">Rotate</button><button id="del">Remove</button></div>
+  <p class="note">Drag bins to move. Select one and press R to rotate. Invalid drops snap back.</p></section>
+</div>
+<div><section class="stage"><p id="msg"></p><svg id="svg" aria-label="Drawer layout"></svg></section></div>
+<div>
+ <section><h2>Price tier</h2><div class="tier" id="tier"></div><p class="note" id="tnote"></p></section>
+ <section><h2>Parts list</h2><table id="bom"></table></section>
+ <section><h2>Versions</h2><div class="row"><button id="save">Save version</button><button id="order" class="p">Add to cart</button></div><div id="vers"></div>
+  <p class="note" id="cartout"></p></section>
+ <section><h2>Configuration data</h2><pre id="json"></pre></section>
+</div></main>
+<script>
+const G=30, RULES={grid:3,tiers:[{sq:10,price:240},{sq:12,price:280},{sq:14,price:325},{sq:16,price:370}],ksAllow:12,min:12,max:48,rulesVersion:'2026-10'};
+const CAT=[[1,1],[1,2],[2,2],[2,3],[3,3],[1,4],[2,4],[3,4]];
+const COL=['#3f7f7a','#4a6fa5','#8a6bb0','#b0704b','#5f8f4e','#a85a74','#2f8f9d','#7b7d3a'];
+let S={w:22.5,d:18,mode:'reg',items:[],sel:null,vers:[],n:1,uid:1},drag=null;
+try{const x=JSON.parse(localStorage.getItem('tb_proto')||'null');if(x&&x.items){S=x;}}catch(e){}
+const $=id=>document.getElementById(id);
+const eff=i=>i.rot?{w:i.bd,d:i.bw}:{w:i.bw,d:i.bd};
+const cells=()=>({cw:Math.floor(S.w/3),cd:Math.floor(S.d/3)});
+const sqft=c=>c.w*c.d/144;
+function tierOf(sq){return RULES.tiers.find(t=>sq<=t.sq+1e-9)||null}
+function validate(c){ // shared rules: same code runs in the browser and in the mock server
+ const e=[];const cw=Math.floor(c.w/3),cd=Math.floor(c.d/3);
+ if(c.w<RULES.min||c.d<RULES.min||c.w>RULES.max||c.d>RULES.max)e.push('Drawer must be 12–48 in on each side.');
+ const sq=sqft(c);if(!tierOf(sq))e.push('Drawer exceeds the largest tier (16 sq ft).');
+ if(c.mode==='ks'&&sq>RULES.ksAllow+1e-9)e.push('Kickstarter reward allows up to '+RULES.ksAllow+' sq ft; this drawer is '+sq.toFixed(1)+' sq ft.');
+ const bad=new Set();c.items.forEach((a,i)=>{
+  if(a.x<0||a.y<0||a.x+a.w>cw||a.y+a.d>cd){bad.add(a.id);e.push('A bin is outside the drawer.')}
+  c.items.forEach((b,j)=>{if(j>i&&a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.d&&b.y<a.y+a.d){bad.add(a.id);bad.add(b.id);e.push('Bins overlap.')}})});
+ return{errors:[...new Set(e)],bad};}
+const cfg=()=>({schemaVersion:1,rulesVersion:RULES.rulesVersion,mode:S.mode,w:S.w,d:S.d,
+ items:S.items.map(i=>{const f=eff(i);return{id:i.id,sku:'BIN-'+i.bw+'x'+i.bd,x:i.x,y:i.y,w:f.w,d:f.d,rotation:i.rot?90:0}})});
+function shims(){const rw=+(S.w-cells().cw*3).toFixed(2),rd=+(S.d-cells().cd*3).toFixed(2),o=[];
+ if(rw>0)o.push(['Shim strip, width side',rw+' in']);if(rd>0)o.push(['Shim strip, depth side',rd+' in']);return o}
+function free(w,d){const{cw,cd}=cells();for(let y=0;y+d<=cd;y++)for(let x=0;x+w<=cw;x++){
+ const t={id:-1,x,y,w,d};if(!S.items.some(b=>{const f=eff(b);return x<b.x+f.w&&b.x<x+w&&y<b.y+f.d&&b.y<y+d}))return{x,y}}return null}
+function msg(t,k){$('msg').textContent=t;$('msg').className=k||''}
+function render(){
+ const{cw,cd}=cells(),W=S.w*10,D=S.d*10,P=14;
+ const v=validate(cfg());
+ let h='<defs><pattern id="h" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="var(--wood2)"/><line x1="0" y1="0" x2="0" y2="8" stroke="var(--wood)" stroke-width="4"/></pattern></defs>';
+ h+=`<rect x="${P}" y="${P}" width="${W}" height="${D}" rx="6" fill="url(#h)" stroke="var(--ink)" stroke-width="2"/>`;
+ h+=`<rect x="${P}" y="${P}" width="${cw*G}" height="${cd*G}" fill="var(--wood)"/>`;
+ for(let i=0;i<=cw;i++)h+=`<line x1="${P+i*G}" y1="${P}" x2="${P+i*G}" y2="${P+cd*G}" stroke="var(--wood2)" stroke-width=".8"/>`;
+ for(let j=0;j<=cd;j++)h+=`<line x1="${P}" y1="${P+j*G}" x2="${P+cw*G}" y2="${P+j*G}" stroke="var(--wood2)" stroke-width=".8"/>`;
+ S.items.forEach(i=>{const f=eff(i),bad=v.bad.has(i.id),c=COL[CAT.findIndex(k=>k[0]===i.bw&&k[1]===i.bd)%8];
+  h+=`<g data-id="${i.id}" style="cursor:grab"><rect x="${P+i.x*G+2}" y="${P+i.y*G+2}" width="${f.w*G-4}" height="${f.d*G-4}" rx="4" fill="${bad?'#c4392b':c}" fill-opacity="${bad?.75:.92}" stroke="${S.sel===i.id?'var(--acc)':'rgba(0,0,0,.35)'}" stroke-width="${S.sel===i.id?3:1}"/>
+  <text x="${P+i.x*G+f.w*G/2}" y="${P+i.y*G+f.d*G/2+4}" text-anchor="middle" fill="#fff" font-size="12" font-weight="700" pointer-events="none">${f.w*3}×${f.d*3}</text></g>`});
+ const svg=$('svg');svg.setAttribute('viewBox',`0 0 ${W+2*P} ${D+2*P}`);svg.innerHTML=h;
+ const sq=sqft(S),t=tierOf(sq);
+ $('tier').className='tier'+(t&&!(S.mode==='ks'&&sq>RULES.ksAllow)?'':' bad');
+ $('tier').innerHTML=t?`<b>$${t.price}</b>${t.sq} sq ft tier`:'<b>—</b>No tier available';
+ $('tnote').textContent=`Drawer is ${sq.toFixed(2)} sq ft (${S.w} × ${S.d} in). `+(S.mode==='ks'?'Kickstarter allowance: 12 sq ft.':t&&t.sq*1>sq?'Rounded up to the next tier.':'');
+ const cnt={};S.items.forEach(i=>{const k='Bin '+i.bw*3+'×'+i.bd*3+' in';cnt[k]=(cnt[k]||0)+1});
+ $('bom').innerHTML=Object.entries(cnt).map(([k,n])=>`<tr><td>${k}</td><td>×${n}</td></tr>`).join('')+shims().map(s=>`<tr><td>${s[0]}</td><td>${s[1]}</td></tr>`).join('')||'<tr><td>Add a bin to start.</td><td></td></tr>';
+ $('json').textContent=JSON.stringify(cfg(),null,1);
+ $('order').disabled=v.errors.length>0||!S.items.length;
+ if(!drag)msg(v.errors[0]||(S.items.length?'Layout is valid.':'Add bins to the drawer.'),v.errors.length?'bad':'ok');
+ $('vers').innerHTML=S.vers.map(x=>`<div class="ver"><span>Design v${x.v} ${x.locked?'<span class="lock">· ordered '+x.order+'</span>':''}</span><button data-v="${x.v}">Open</button></div>`).join('');
+ try{localStorage.setItem('tb_proto',JSON.stringify(S))}catch(e){}
+}
+$('pal').innerHTML=CAT.map((k,i)=>`<button data-k="${i}">${k[0]*3}×${k[1]*3} in</button>`).join('');
+$('pal').onclick=e=>{const k=e.target.dataset.k;if(k==null)return;const[bw,bd]=CAT[k],p=free(bw,bd);
+ if(!p){msg('No room for that bin. Try a smaller one or a larger drawer.','bad');return}
+ S.items.push({id:S.uid++,bw,bd,rot:0,x:p.x,y:p.y});S.sel=S.items.at(-1).id;render()};
+$('w').oninput=$('d').oninput=()=>{S.w=+$('w').value||S.w;S.d=+$('d').value||S.d;render()};
+$('mode').onchange=()=>{S.mode=$('mode').value;render()};
+function rotate(){const i=S.items.find(b=>b.id===S.sel);if(!i)return;i.rot=i.rot?0:1;render()}
+$('rot').onclick=rotate;document.addEventListener('keydown',e=>{if(e.key==='r'||e.key==='R'){if(document.activeElement.tagName!=='INPUT')rotate()}});
+$('del').onclick=()=>{S.items=S.items.filter(b=>b.id!==S.sel);S.sel=null;render()};
+const svg=$('svg');
+function pt(e){const m=svg.getScreenCTM().inverse(),p=svg.createSVGPoint();p.x=e.clientX;p.y=e.clientY;return p.matrixTransform(m)}
+svg.onpointerdown=e=>{const g=e.target.closest('g[data-id]');if(!g){S.sel=null;render();return}
+ const i=S.items.find(b=>b.id==g.dataset.id),p=pt(e);S.sel=i.id;drag={i,ox:p.x-14-i.x*G,oy:p.y-14-i.y*G,sx:i.x,sy:i.y};svg.setPointerCapture(e.pointerId);render()};
+svg.onpointermove=e=>{if(!drag)return;const p=pt(e);drag.i.x=Math.round((p.x-14-drag.ox)/G);drag.i.y=Math.round((p.y-14-drag.oy)/G);render()};
+svg.onpointerup=()=>{if(!drag)return;const v=validate(cfg());
+ if(v.bad.has(drag.i.id)){drag.i.x=drag.sx;drag.i.y=drag.sy;drag=null;render();msg('That spot isn’t valid, so the bin snapped back.','bad');return}
+ drag=null;render()};
+$('save').onclick=()=>{const v=validate(cfg());if(v.errors.length){msg('Fix the layout before saving a version.','bad');return}
+ S.vers.push({v:S.n++,cfg:JSON.parse(JSON.stringify({w:S.w,d:S.d,mode:S.mode,items:S.items,uid:S.uid})),locked:false});render()};
+$('vers').onclick=e=>{const n=e.target.dataset.v;if(!n)return;const x=S.vers.find(a=>a.v==n);
+ Object.assign(S,JSON.parse(JSON.stringify(x.cfg)));$('w').value=S.w;$('d').value=S.d;$('mode').value=S.mode;S.sel=null;render();
+ msg(x.locked?'Opened v'+x.v+' (ordered). Edits will be saved as a new version, never over this one.':'Opened v'+x.v+'.','ok')};
+// ---- mock server: re-validates from the JSON alone, recomputes tier/price, issues the config ID ----
+function mockServer(payload){const c=JSON.parse(JSON.stringify(payload)),v=validate({w:c.w,d:c.d,mode:c.mode,items:c.items});
+ if(v.errors.length)return{ok:false,errors:v.errors};const t=tierOf(sqft(c));
+ return{ok:true,configId:'cfg_'+Math.random().toString(36).slice(2,8),tier:t.sq,price:t.price}}
+$('order').onclick=()=>{const r=mockServer(cfg());if(!r.ok){msg(r.errors[0],'bad');return}
+ const ver=S.vers.length?S.vers.at(-1):null;if(ver)ver.locked=true,ver.order='#'+(10482+ver.v);
+ else{S.vers.push({v:S.n++,cfg:{w:S.w,d:S.d,mode:S.mode,items:JSON.parse(JSON.stringify(S.items)),uid:S.uid},locked:true,order:'#10482'})}
+ $('cartout').innerHTML=`Server verified. Tier ${r.tier} sq ft, $${r.price}.<br>Cart line item properties:<br><code>_config_id: ${r.configId}<br>_config_version: ${S.vers.at(-1).v}</code>`;render();msg('Added to cart. This version is now locked.','ok')};
+$('w').value=S.w;$('d').value=S.d;$('mode').value=S.mode;
+if(!S.items.length){[[2,3],[2,2],[1,3],[3,2]].forEach(([a,b])=>{const p=free(a,b);if(p)S.items.push({id:S.uid++,bw:a,bd:b,rot:0,x:p.x,y:p.y})})}
+render();
+</script></body></html>
